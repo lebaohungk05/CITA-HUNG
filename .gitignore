@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+src/visualizations.py
+src/utils/get_gender_faces.py
+src/train_emotion_classifier_transfer_learning.py
+
+# Datasets
+datasets/
+datasets.zip
+
+# Models & Database
+trained_models/
+student_engagement.db
+
+# Reports & Logs
+reports/
+report_images/
+*.log
+
+# User request: Only source code (No Markdown, No Images, No PDFs)
+*.md
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.pdf
+
+# Environment & IDE
+.DS_Store
+.vscode/
+.idea/
+.env
+.venv/
+venv/
