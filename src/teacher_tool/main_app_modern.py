@@ -23,12 +23,12 @@ if src_dir not in sys.path:
     sys.path.append(src_dir)
 
 try:
-    from models.resnet18_pytorch import resnet18_pytorch
+    from models.resnet18_custom import resnet18_custom
     from teacher_tool.face_detector import FaceDetector
     from teacher_tool.smoothing import EMASmoother
 except ImportError:
     try:
-        from src.models.resnet18_pytorch import resnet18_pytorch
+        from src.models.resnet18_custom import resnet18_custom
         from src.teacher_tool.face_detector import FaceDetector
         from src.teacher_tool.smoothing import EMASmoother
     except ImportError as e:
@@ -51,7 +51,7 @@ ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
 # --- CONFIG ---
-MODEL_EMOTION_PATH = os.path.join(src_dir, '../trained_models/emotion_models/fer2013_resnet18_best_se_focal.pth')
+MODEL_EMOTION_PATH = os.path.join(src_dir, '../trained_models/emotion_models/fer2013_resnet18_mixup_best.pth')
 MODEL_GENDER_PATH = os.path.join(src_dir, '../trained_models/gender_models/gender_mini_XCEPTION.21-0.95.hdf5') 
 DB_PATH = os.path.join(src_dir, '../student_engagement.db')
 
@@ -149,8 +149,12 @@ class TeacherMonitorApp:
     def _load_models(self):
         try:
             print(f"[AI] Loading Emotion Model to {self.device}...")
-            model = resnet18_pytorch(num_classes=7)
+            # Use custom resnet model
+            model = resnet18_custom(num_classes=7, pretrained=False)
             state_dict = torch.load(MODEL_EMOTION_PATH, map_location=self.device)
+            # Handle potential key mismatch if model was saved weirdly
+            if 'model_state_dict' in state_dict:
+                state_dict = state_dict['model_state_dict']
             model.load_state_dict(state_dict)
             model.to(self.device).eval()
             self.emotion_model = model
@@ -211,7 +215,8 @@ class TeacherMonitorApp:
                 emotion = "Neutral"
                 if self.emotion_model:
                     gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
-                    resized = cv2.resize(gray, (112, 112)).astype('float32') / 255.0
+                    # Resize to 48x48 as per training
+                    resized = cv2.resize(gray, (48, 48)).astype('float32') / 255.0
                     
                     # Tensor to self.device (CPU)
                     tensor = torch.from_numpy((resized - 0.5) / 0.5).unsqueeze(0).unsqueeze(0).to(self.device)

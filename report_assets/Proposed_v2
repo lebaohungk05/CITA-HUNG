@@ -1,0 +1,49 @@
+// Training Pipeline
+digraph {
+	rankdir=TB ratio=fill size="10,12"
+	node [fontname="Times-Roman" fontsize=12 shape=rect style=filled]
+	subgraph cluster_0 {
+		style=invis
+		Start [label="Load SE-ResNet18
+(Pretrained)" fillcolor=lightblue]
+		InitMixup [label="Init Mixup Params
+(alpha = 0.6)" fillcolor=lightblue]
+	}
+	subgraph cluster_1 {
+		color=gray fontsize=14 label="Stage 1: Base Training (Convergence)" style=dashed
+		TrainStep1 [label="Train Epoch (Mixup)
+SGD + CosineLR" fillcolor=lightblue]
+		CheckEpoch1 [label="Epoch < 230?" fillcolor=lightyellow shape=diamond]
+	}
+	subgraph cluster_2 {
+		color=gray fontsize=14 label="Stage 2: SWA Generalization" style=dashed
+		SwitchSWA [label="Switch to SWA Mode
+(LR = 0.001)" fillcolor=lightblue]
+		TrainStep2 [label="SWA Train Step
+& Update Weights" fillcolor=lightblue]
+		CheckEpoch2 [label="Epoch = 265?" fillcolor=lightyellow shape=diamond]
+	}
+	subgraph cluster_3 {
+		color=gray fontsize=14 label="Stage 3: Fine-tuning (Refinement)" style=dashed
+		DisableMixup [label="Disable Mixup
+Use Clean Data" fillcolor=orange]
+		FreezeTrain [label="Step 3a: Freeze Backbone
+Train Classifier (LR 1e-3)" fillcolor=orange]
+		UnfreezeTrain [label="Step 3b: Unfreeze All
+Train (LR 1e-5)" fillcolor=orange]
+	}
+	Final [label="Final Optimized Model
+(Acc 72.72%)" fillcolor=lightgreen fontsize=14 shape=rect style="filled,rounded"]
+	Start -> TrainStep1
+	InitMixup -> TrainStep1
+	TrainStep1 -> CheckEpoch1
+	CheckEpoch1 -> TrainStep1 [label=Yes]
+	CheckEpoch1 -> SwitchSWA [label=No]
+	SwitchSWA -> TrainStep2
+	TrainStep2 -> CheckEpoch2
+	CheckEpoch2 -> TrainStep2 [label=No]
+	CheckEpoch2 -> DisableMixup [label=Yes]
+	DisableMixup -> FreezeTrain
+	FreezeTrain -> UnfreezeTrain
+	UnfreezeTrain -> Final
+}
