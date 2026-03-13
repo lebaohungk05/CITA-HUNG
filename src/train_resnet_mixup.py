@@ -9,32 +9,31 @@ import csv
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-# IMPORT MODEL CUSTOM MỚI
 from models.resnet18_custom import resnet18_custom
 from utils.datasets import FERDataset
 
-# --- Cấu hình Mixup & Custom (TINH CHỈNH CHO MỤC TIÊU 73%) ---
+
 BATCH_SIZE = 128
-NUM_EPOCHS = 280      # Tăng từ 240 -> 280 để model có thời gian ngấm bài toán khó hơn
-SWA_START_EPOCH = 230 # Tăng từ 200 -> 230 để Cosine Annealing chạy lâu hơn
+NUM_EPOCHS = 280      
+SWA_START_EPOCH = 230 
 INPUT_SIZE = 48
 NUM_CLASSES = 7
-MIXUP_ALPHA = 0.6     # Tăng từ 0.4 -> 0.6: Tăng độ khó, buộc model học đặc trưng tổng quát
+MIXUP_ALPHA = 0.6     
 
-# Class Weights (Giữ nguyên)
+
 CLASS_WEIGHTS = [1.02, 3.10, 1.01, 0.76, 0.93, 1.15, 0.91]
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.join(SCRIPT_DIR, '../trained_models/emotion_models/')
 DATASET_PATH = os.path.join(SCRIPT_DIR, '../datasets')
 
-# Đường dẫn riêng cho bản Mixup Optimized (Để không ghi đè bản cũ 72.5%)
+
 TENSORBOARD_LOG_DIR = os.path.join(BASE_PATH, 'tensorboard_logs_resnet_mixup_optimized')
 CSV_LOG_PATH = os.path.join(BASE_PATH, 'fer2013_resnet_training_log_mixup_optimized.csv')
 CHECKPOINT_PATH = os.path.join(BASE_PATH, 'fer2013_resnet18_mixup_optimized.pth')
 BEST_MODEL_PATH = os.path.join(BASE_PATH, 'fer2013_resnet18_best_optimized.pth')
 
-# --- Mixup Functions ---
+
 def mixup_data(x, y, alpha=1.0, device='cuda'):
     '''Returns mixed inputs, pairs of targets, and lambda'''
     if alpha > 0: lam = np.random.beta(alpha, alpha)
@@ -49,14 +48,14 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 if __name__ == "__main__":
-    # 1. Device Setup
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device} | MIXUP OPTIMIZED (Alpha={MIXUP_ALPHA}, WD=2e-4)")
 
-    # 2. Prepare Paths
+    
     if not os.path.exists(BASE_PATH): os.makedirs(BASE_PATH)
 
-    # 3. Datasets
+    
     print("Initializing Datasets...")
  
     train_dataset = FERDataset(os.path.join(DATASET_PATH, 'train'), (INPUT_SIZE, INPUT_SIZE), mode='train')
@@ -68,29 +67,29 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True)
 
-    # 4. Model Initialization (CUSTOM MODEL)
+
     print("Building Model (Custom ResNet18 for 48x48)...")
     model = resnet18_custom(num_classes=NUM_CLASSES, pretrained=True)
     model.to(device)
     
-    # SWA Model Wrapper
+    
     swa_model = AveragedModel(model)
     swa_model.to(device)
 
-    # 5. Optimizer & Loss
+    
     class_weights_tensor = torch.FloatTensor(CLASS_WEIGHTS).to(device)
-    # Giữ Label Smoothing 0.1
+    
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor, label_smoothing=0.1)
     
-    # Tăng Weight Decay lên 2e-4 để kháng overfitting khi train lâu hơn
+    
     optimizer = SGD(model.parameters(), lr=0.01, momentum=0.9, nesterov=True, weight_decay=2e-4)
     
-    # Scheduler
+    
     scheduler = CosineAnnealingLR(optimizer, T_max=SWA_START_EPOCH)
-    # Giảm swa_lr xuống 0.001 (1e-3) để tránh shock loss khi chuyển phase
+    
     swa_scheduler = SWALR(optimizer, swa_lr=0.001)
 
-    # 6. Logging & Checkpoint Loading
+    
     writer = SummaryWriter(log_dir=TENSORBOARD_LOG_DIR)
     
     start_epoch = 1
@@ -146,7 +145,7 @@ if __name__ == "__main__":
             total_loss += loss.item()
             _, pred = torch.max(outputs, 1)
             total += batch_y.size(0)
-            # Tính accuracy dựa trên nhãn mạnh hơn (label dominant)
+            
             correct += (lam * (pred == y_a).sum().item() + (1 - lam) * (pred == y_b).sum().item())
 
         # SWA Update & Scheduler Step
